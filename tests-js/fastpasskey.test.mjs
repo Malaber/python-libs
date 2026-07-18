@@ -167,6 +167,15 @@ test("management client adds, renames, and deletes passkeys", async () => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.match(document.querySelector("[data-passkey-list]").textContent, /Tablet/);
+
+    document.querySelector('[data-passkey-rename="two"]').click();
+    form.querySelector("input").value = "Travel key";
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(
+      document.querySelector("[data-passkey-success]").textContent,
+      "Passkey renamed after confirming it still works.",
+    );
   } finally {
     restore();
   }

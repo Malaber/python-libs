@@ -499,14 +499,26 @@ function initPasskeyManagement() {
     }
     toggleButtons(root, true);
     try {
-      if (form.dataset.mode === "rename") {
+      const isRename = form.dataset.mode === "rename";
+      if (isRename) {
         await renamePasskey(form.dataset.passkeyId, name);
       } else {
         await addPasskey(name);
       }
       setPasskeyNameFormState(root, null);
       await refresh();
-      setMessage(root, "success", t("settings.added_success", {}, "Passkey saved."), "passkey");
+      setMessage(
+        root,
+        "success",
+        isRename
+          ? t(
+              "settings.renamed_success",
+              {},
+              "Passkey renamed after confirming it still works."
+            )
+          : t("settings.added_success", {}, "Another passkey is ready to use."),
+        "passkey"
+      );
     } catch (error) {
       setMessage(root, "error", error.message, "passkey");
     } finally {

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fastpasskey"
-version = "0.2.0"
+version = "0.2.1"
 description = "Reusable FastAPI passkey routes, browser client, templates, and WebAuthn core"
 readme = "README.md"
 license = "MIT"
