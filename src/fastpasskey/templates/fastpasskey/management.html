@@ -1,0 +1,46 @@
+{% macro passkey_management() %}
+<section class="dashboard-card dashboard-account-card" data-passkey-management>
+  <div class="dashboard-section-heading">
+    <div>
+      <p class="dashboard-label">{{ t("settings.security") }}</p>
+      <h2>{{ t("settings.your_passkeys") }}</h2>
+    </div>
+    <button type="button" class="secondary-button" data-passkey-add>{{ t("settings.add_another") }}</button>
+  </div>
+  <p class="dashboard-helper">{{ t("settings.helper") }}</p>
+  <form class="passkey-name-form" data-passkey-name-form hidden>
+    <label class="dashboard-field">
+      <span data-passkey-name-title>{{ t("settings.name_this_passkey") }}</span>
+      <input type="text" name="name" maxlength="120" placeholder="{{ t("settings.passkey_name_placeholder") }}" data-passkey-name-input />
+    </label>
+    <div class="passkey-name-actions">
+      <button type="submit" class="primary-button" data-passkey-name-submit>{{ t("common.continue") }}</button>
+      <button type="button" class="secondary-button" data-passkey-name-cancel>{{ t("common.cancel") }}</button>
+    </div>
+  </form>
+  <div class="dashboard-empty" data-passkey-empty hidden>
+    <h3>{{ t("settings.no_passkeys_title") }}</h3>
+    <p>{{ t("settings.no_passkeys_body") }}</p>
+  </div>
+  <div class="passkey-list" data-passkey-list></div>
+  <div class="dashboard-banner dashboard-banner-error" data-passkey-error hidden></div>
+  <div class="dashboard-banner dashboard-banner-success" data-passkey-success hidden></div>
+  <div class="item-modal" data-passkey-delete-overlay hidden>
+    <button class="item-modal-backdrop" type="button" aria-label="{{ t("common.close") }}" data-passkey-delete-close></button>
+    <section class="dashboard-card item-edit-panel passkey-delete-panel" data-passkey-delete-panel hidden>
+      <div class="add-item-panel-header">
+        <div>
+          <p class="dashboard-label">{{ t("settings.confirm_deletion") }}</p>
+          <h3>{{ t("settings.delete_this_passkey") }}</h3>
+        </div>
+        <button class="add-item-close" type="button" aria-label="{{ t("common.close") }}" data-passkey-delete-close>&times;</button>
+      </div>
+      <p class="dashboard-helper" data-passkey-delete-copy>{{ t("settings.delete_help_generic") }}</p>
+      <div class="passkey-name-actions">
+        <button type="button" class="danger-button" data-passkey-delete-confirm>{{ t("settings.continue_to_verification") }}</button>
+        <button type="button" class="secondary-button" data-passkey-delete-close>{{ t("common.cancel") }}</button>
+      </div>
+    </section>
+  </div>
+</section>
+{% endmacro %}

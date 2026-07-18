@@ -15,21 +15,43 @@ from fastpasskey.core import (
     new_ceremony_state,
     validate_passkey_name,
 )
+from fastpasskey.fastapi import (
+    PasskeyConflictError,
+    PasskeyCredential,
+    PasskeyOut,
+    PasskeyRepository,
+    PasskeyRouterConfig,
+    PasskeyUserRecord,
+    TokenOut,
+    UserOut,
+    create_passkey_router,
+)
+from fastpasskey.templates import install_fastpasskey_templates
 
 __all__ = [
     "CeremonyStart",
     "FastPasskey",
     "PasskeyConfigurationError",
+    "PasskeyConflictError",
+    "PasskeyCredential",
     "PasskeyError",
     "PasskeyNameError",
     "PasskeyPayloadError",
+    "PasskeyOut",
+    "PasskeyRepository",
+    "PasskeyRouterConfig",
     "PasskeyStateError",
     "PasskeyUser",
+    "PasskeyUserRecord",
+    "TokenOut",
+    "UserOut",
     "ceremony_state_is_valid",
     "credential_descriptor",
     "credential_id_from_payload",
     "default_passkey_name",
     "expected_origins",
+    "create_passkey_router",
+    "install_fastpasskey_templates",
     "new_ceremony_state",
     "validate_passkey_name",
 ]

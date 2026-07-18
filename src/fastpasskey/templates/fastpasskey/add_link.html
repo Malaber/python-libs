@@ -1,0 +1,19 @@
+{% macro passkey_add_link(token, email, display_name) %}
+<section class="auth-shell" data-passkey-add-link data-passkey-add-token="{{ token }}">
+  <div class="auth-copy">
+    <h1>{{ t("auth.passkey_add.title") }}</h1>
+    <p>{{ t("auth.passkey_add.one_time_link", email=email) }}</p>
+    <h2>{{ t("auth.passkey_add.register_another_title") }}</h2>
+    <p>{{ t("auth.passkey_add.register_another_body", display_name=display_name) }}</p>
+  </div>
+  <section class="auth-card auth-card-primary">
+    <p class="auth-banner auth-banner-error" data-auth-error hidden></p>
+    <p class="auth-banner auth-banner-success" data-auth-success hidden></p>
+    <h2>{{ t("auth.passkey_add.create_another_title") }}</h2>
+    <p>{{ t("auth.passkey_add.create_another_body") }}</p>
+    <form class="auth-form" data-passkey-add-link-form>
+      <button type="button" data-passkey-add-link-button>{{ t("auth.passkey_add.create_additional_button") }}</button>
+    </form>
+  </section>
+</section>
+{% endmacro %}

@@ -1,0 +1,41 @@
+{% macro passkey_login(next_url="/") %}
+<section class="auth-shell" data-passkey-auth data-next-url="{{ next_url }}">
+  <div class="auth-copy">
+    <h1>{{ t("auth.login.title") }}</h1>
+    <p>{{ t("auth.login.intro") }}</p>
+    <p><a class="secondary-button" href="/capabilities">{{ t("auth.login.capabilities_link") }}</a></p>
+  </div>
+  <section class="auth-card auth-card-primary">
+    <p class="auth-banner auth-banner-error" data-auth-error hidden></p>
+    <p class="auth-banner auth-banner-success" data-auth-success hidden></p>
+    <div class="auth-panels" data-auth-panels>
+      <div class="auth-panel" data-auth-tab-panel="signin" id="auth-panel-signin" role="tabpanel" aria-labelledby="auth-tab-signin">
+        <h2>{{ t("auth.login.sign_in_title") }}</h2>
+        <p>{{ t("auth.login.sign_in_body") }}</p>
+        <form class="auth-form" data-passkey-login>
+          <button type="button" data-passkey-login-button>{{ t("auth.login.sign_in_button") }}</button>
+        </form>
+      </div>
+      <div class="auth-panel" data-auth-tab-panel="signup" id="auth-panel-signup" role="tabpanel" aria-labelledby="auth-tab-signup" hidden>
+        <h2>{{ t("auth.login.create_account_title") }}</h2>
+        <p>{{ t("auth.login.create_account_body") }}</p>
+        <form class="auth-form" data-passkey-register>
+          <label class="auth-field">
+            <span>{{ t("auth.login.display_name") }}</span>
+            <input type="text" name="display_name" autocomplete="name" required />
+          </label>
+          <label class="auth-field">
+            <span>{{ t("auth.login.email") }}</span>
+            <input type="email" name="email" autocomplete="username webauthn" required />
+          </label>
+          <button type="submit" data-passkey-register-button>{{ t("auth.login.create_passkey_button") }}</button>
+        </form>
+      </div>
+    </div>
+    <div class="auth-tabs" role="tablist" aria-label="{{ t("auth.login.tabs_aria") }}">
+      <button type="button" class="auth-tab-button" data-auth-tab-trigger="signin" id="auth-tab-signin" role="tab" aria-controls="auth-panel-signin" aria-selected="true">{{ t("auth.login.sign_in_tab") }}</button>
+      <button type="button" class="auth-tab-button" data-auth-tab-trigger="signup" id="auth-tab-signup" role="tab" aria-controls="auth-panel-signup" aria-selected="false">{{ t("auth.login.create_account_tab") }}</button>
+    </div>
+  </section>
+</section>
+{% endmacro %}
