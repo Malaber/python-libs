@@ -176,6 +176,12 @@ test("management client adds, renames, and deletes passkeys", async () => {
       document.querySelector("[data-passkey-success]").textContent,
       "Passkey renamed after confirming it still works.",
     );
+
+    document.querySelector('[data-passkey-delete="one"]').click();
+    assert.equal(
+      document.querySelector("[data-passkey-delete-copy]").textContent,
+      "To delete Phone, you must authenticate with another passkey to confirm you still have a working Passkey after deleting one.",
+    );
   } finally {
     restore();
   }

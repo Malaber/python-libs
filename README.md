@@ -20,7 +20,7 @@ Pin a release wheel and its SHA-256 digest for reproducible builds:
 
 ```toml
 dependencies = [
-  "fastpasskey @ https://github.com/Malaber/python-libs/releases/download/fastpasskey-v0.2.1/fastpasskey-0.2.1-py3-none-any.whl#sha256=<release-sha256>",
+  "fastpasskey @ https://github.com/Malaber/python-libs/releases/download/fastpasskey-v0.2.2/fastpasskey-0.2.2-py3-none-any.whl#sha256=<release-sha256>",
 ]
 ```
 

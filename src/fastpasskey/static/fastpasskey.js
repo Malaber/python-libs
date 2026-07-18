@@ -384,10 +384,24 @@ function setDeleteState(root, state) {
   panel.hidden = !state;
   confirm.dataset.passkeyId = state?.passkeyId || "";
   if (copy && state) {
-    copy.textContent = t(
-      "settings.delete_help_prefix",
-      { name: state.name },
-      `To delete ${state.name}, authenticate with another passkey.`
+    const emphasis = document.createElement("strong");
+    emphasis.textContent = t("settings.delete_help_emphasis", {}, "another");
+    copy.replaceChildren(
+      document.createTextNode(
+        t(
+          "settings.delete_help_prefix",
+          { name: state.name },
+          `To delete ${state.name}, you must authenticate with `
+        )
+      ),
+      emphasis,
+      document.createTextNode(
+        t(
+          "settings.delete_help_suffix",
+          {},
+          " passkey to confirm you still have a working Passkey after deleting one."
+        )
+      )
     );
   }
   document.body.classList.toggle("has-list-modal-open", Boolean(state));
