@@ -20,7 +20,7 @@ Pin a release wheel and its SHA-256 digest for reproducible builds:
 
 ```toml
 dependencies = [
-  "fastpasskey @ https://github.com/Malaber/python-libs/releases/download/fastpasskey-v0.2.2/fastpasskey-0.2.2-py3-none-any.whl#sha256=<release-sha256>",
+  "fastpasskey @ https://github.com/Malaber/python-libs/releases/download/fastpasskey-v0.2.3/fastpasskey-0.2.3-py3-none-any.whl#sha256=<release-sha256>",
 ]
 ```
 
@@ -108,4 +108,5 @@ npm test
 
 The core retains 100% branch coverage; router integration, browser flows, assets,
 and template loading have dedicated tests in both supported Python versions and
-Node 24 CI.
+Node 24 CI. Successful pushes to `main` automatically build the wheel and its
+SHA-256 checksum, create the version tag, and publish both as a GitHub Release.
