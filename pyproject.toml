@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68", "setuptools-scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "fastpasskey"
-version = "0.2.4"
+dynamic = ["version"]
 description = "Reusable FastAPI passkey routes, browser client, templates, and WebAuthn core"
 readme = "README.md"
 license = "MIT"
@@ -33,6 +33,10 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 fastpasskey = ["static/*.js", "templates/fastpasskey/*.html"]
+
+[tool.setuptools_scm]
+fallback_version = "0.0.dev0"
+tag_regex = "^fastpasskey-v(?P<version>\\d+\\.\\d+\\.\\d+)$"
 
 [tool.pytest.ini_options]
 addopts = "-q --cov=fastpasskey --cov-branch --cov-report=term-missing --cov-fail-under=100"

@@ -20,7 +20,7 @@ Pin a release wheel and its SHA-256 digest for reproducible builds:
 
 ```toml
 dependencies = [
-  "fastpasskey @ https://github.com/Malaber/python-libs/releases/download/fastpasskey-v0.2.4/fastpasskey-0.2.4-py3-none-any.whl#sha256=<release-sha256>",
+  "fastpasskey @ https://github.com/Malaber/python-libs/releases/download/fastpasskey-v<version>/fastpasskey-<version>-py3-none-any.whl#sha256=<release-sha256>",
 ]
 ```
 
@@ -118,6 +118,8 @@ discoverable login, and one-time add-link consumption through the real packaged
 JavaScript and templates.
 
 Successful pushes to `main` publish only after Python 3.11 and 3.14 unit tests,
-Node 24 browser unit tests, and Chromium WebAuthn e2e all pass. CI then builds the
-wheel and SHA-256 checksum, creates the version tag, and publishes both as a
-GitHub Release.
+Node 24 browser unit tests, and Chromium WebAuthn e2e all pass. CI derives the
+next patch version from Git tags, builds the wheel from the tested commit with a
+commit-derived build timestamp, writes its SHA-256 checksum, creates the version
+tag, and publishes both as a GitHub Release. Releases require no source version
+edit or local build/tag/release command.
