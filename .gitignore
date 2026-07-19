@@ -1,4 +1,6 @@
 .coverage
+coverage/
+e2e-artifacts/
 .pytest_cache/
 .venv/
 __pycache__/

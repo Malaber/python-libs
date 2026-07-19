@@ -19,21 +19,47 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e '.[dev]'
-      - run: python -m invoke verify
+      - run: python -m invoke check-python
   browser:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm test
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m invoke install-js
+      - run: python -m invoke check-js
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m invoke install-js
+      - run: python -m invoke install-browser --with-deps
+      - run: python -m invoke browser-e2e
+      - uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: fastpasskey-browser-e2e
+          path: e2e-artifacts
+          if-no-files-found: ignore
 
   release:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [verify, browser]
+    needs: [verify, browser, browser-e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: write

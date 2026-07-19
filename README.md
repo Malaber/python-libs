@@ -20,7 +20,7 @@ Pin a release wheel and its SHA-256 digest for reproducible builds:
 
 ```toml
 dependencies = [
-  "fastpasskey @ https://github.com/Malaber/python-libs/releases/download/fastpasskey-v0.2.3/fastpasskey-0.2.3-py3-none-any.whl#sha256=<release-sha256>",
+  "fastpasskey @ https://github.com/Malaber/python-libs/releases/download/fastpasskey-v0.2.4/fastpasskey-0.2.4-py3-none-any.whl#sha256=<release-sha256>",
 ]
 ```
 
@@ -101,12 +101,23 @@ Requires Python 3.11+ and Node 24.
 
 ```bash
 python -m pip install -e '.[dev]'
+python -m invoke install-js
+python -m invoke install-browser
 python -m invoke verify
-npm ci
-npm test
 ```
 
-The core retains 100% branch coverage; router integration, browser flows, assets,
-and template loading have dedicated tests in both supported Python versions and
-Node 24 CI. Successful pushes to `main` automatically build the wheel and its
-SHA-256 checksum, create the version tag, and publish both as a GitHub Release.
+The Python suite enforces 100% statement and branch coverage over the WebAuthn
+core, complete FastAPI router, schemas, assets, and template loader. The Node 24
+suite separately enforces 100% statement, branch, function, and line coverage
+over the packaged browser module.
+
+The Chromium e2e suite uses a virtual CTAP2 authenticator against a live FastAPI
+server on `localhost`. It covers account registration, adding a credential from
+a second authenticator, renaming, deletion confirmed by another credential,
+discoverable login, and one-time add-link consumption through the real packaged
+JavaScript and templates.
+
+Successful pushes to `main` publish only after Python 3.11 and 3.14 unit tests,
+Node 24 browser unit tests, and Chromium WebAuthn e2e all pass. CI then builds the
+wheel and SHA-256 checksum, creates the version tag, and publishes both as a
+GitHub Release.

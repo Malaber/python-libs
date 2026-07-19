@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -10,6 +10,9 @@ from webauthn.helpers import bytes_to_base64url
 
 from fastpasskey import (
     CeremonyStart,
+    PasskeyConfigurationError,
+    PasskeyConflictError,
+    PasskeyOut,
     PasskeyRouterConfig,
     create_passkey_router,
     install_fastpasskey_templates,
@@ -19,14 +22,23 @@ from fastpasskey import (
 class FakeService:
     def __init__(self) -> None:
         self.registration_count = 0
+        self.begin_registration_error = None
+        self.begin_authentication_error = None
+        self.verify_registration_error = None
+        self.verify_authentication_error = None
+        self.credential_id = None
 
     def begin_registration(self, *, state_payload=None, **kwargs):
+        if self.begin_registration_error:
+            raise self.begin_registration_error
         return CeremonyStart(
             options={"challenge": "register", "user": {"id": "user"}},
             state={"issued_at": "now", **dict(state_payload or {})},
         )
 
     def begin_authentication(self, *, state_payload=None, **kwargs):
+        if self.begin_authentication_error:
+            raise self.begin_authentication_error
         return CeremonyStart(
             options={"challenge": "authenticate"},
             state={"issued_at": "now", **dict(state_payload or {})},
@@ -36,14 +48,18 @@ class FakeService:
         return isinstance(state, dict) and state.get("issued_at") == "now"
 
     def verify_registration(self, **kwargs):
+        if self.verify_registration_error:
+            raise self.verify_registration_error
         self.registration_count += 1
         return SimpleNamespace(
-            credential_id=f"credential-{self.registration_count}".encode(),
+            credential_id=self.credential_id or f"credential-{self.registration_count}".encode(),
             credential_public_key=b"public-key",
             sign_count=1,
         )
 
     def verify_authentication(self, **kwargs):
+        if self.verify_authentication_error:
+            raise self.verify_authentication_error
         return SimpleNamespace(new_sign_count=kwargs["credential_current_sign_count"] + 1)
 
 
@@ -54,6 +70,10 @@ class FakeRepository:
         self.link_active = True
         self.authenticated = 0
         self.logged_out = 0
+        self.missing_user_by_id = False
+        self.registration_conflict = False
+        self.complete_link_none = False
+        self.duplicate_credential_ids = set()
 
     @staticmethod
     def _passkey(name, credential):
@@ -78,15 +98,21 @@ class FakeRepository:
         return self.user if self.user and self.user.email == email else None
 
     async def user_by_id(self, user_id):
+        if self.missing_user_by_id:
+            return None
         return self.user if self.user and self.user.id == user_id else None
 
     async def passkey_by_credential_id(self, credential_id):
+        if credential_id in self.duplicate_credential_ids:
+            return SimpleNamespace(credential_id=credential_id)
         return next(
             (entry for entry in self.passkeys if entry.credential_id == credential_id),
             None,
         )
 
     async def register_user(self, *, user_id, email, display_name, passkey_name, credential):
+        if self.registration_conflict:
+            raise PasskeyConflictError
         self.user = SimpleNamespace(
             id=user_id,
             email=email,
@@ -122,7 +148,7 @@ class FakeRepository:
         return self.user if token == "valid" and self.link_active else None
 
     async def complete_add_link(self, *, token, user_id, name, credential):
-        if token != "valid" or not self.link_active:
+        if token != "valid" or not self.link_active or self.complete_link_none:
             return None
         self._attach(self._passkey(name, credential))
         self.link_active = False
@@ -160,15 +186,23 @@ def build_client():
             )
         )
     )
-    return TestClient(app), repository
+    return TestClient(app), repository, service
 
 
 def finish_payload(credential_id="ignored"):
     return {"credential": {"id": credential_id, "response": {}}}
 
 
+def register(client):
+    client.post(
+        "/auth/register/options",
+        json={"email": "owner@example.com", "display_name": "Owner"},
+    )
+    return client.post("/auth/register/verify", json=finish_payload())
+
+
 def test_complete_router_happy_path_and_packaged_asset() -> None:
-    client, repository = build_client()
+    client, repository, _ = build_client()
 
     asset = client.get("/auth/assets/fastpasskey.js")
     assert asset.status_code == 200
@@ -235,7 +269,7 @@ def test_complete_router_happy_path_and_packaged_asset() -> None:
 
 
 def test_router_rejects_expired_and_missing_resources() -> None:
-    client, repository = build_client()
+    client, repository, _ = build_client()
     assert client.post("/auth/register/verify", json=finish_payload()).status_code == 400
     assert client.post("/auth/login/verify", json=finish_payload()).status_code == 400
     assert client.post("/auth/passkey-add/missing/options").status_code == 404
@@ -253,6 +287,240 @@ def test_router_rejects_expired_and_missing_resources() -> None:
         passkeys=[],
     )
     assert client.post("/auth/passkeys/register/options", json={"name": "   "}).status_code == 400
+
+
+def test_registration_rejects_configuration_verification_and_repository_conflicts() -> None:
+    client, repository, service = build_client()
+    service.begin_registration_error = PasskeyConfigurationError("bad registration config")
+    response = client.post(
+        "/auth/register/options",
+        json={"email": "owner@example.com", "display_name": "Owner"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "bad registration config"
+    service.begin_registration_error = None
+
+    assert register(client).status_code == 200
+    client.post(
+        "/auth/register/options",
+        json={"email": "owner@example.com", "display_name": "Owner"},
+    )
+    assert client.post("/auth/register/verify", json=finish_payload()).status_code == 400
+
+    repository.user = None
+    client.post(
+        "/auth/register/options",
+        json={"email": "owner@example.com", "display_name": "Owner"},
+    )
+    service.verify_registration_error = ValueError("bad attestation")
+    assert client.post("/auth/register/verify", json=finish_payload()).status_code == 400
+    service.verify_registration_error = None
+
+    service.credential_id = b"duplicate"
+    repository.duplicate_credential_ids.add(bytes_to_base64url(b"duplicate"))
+    client.post(
+        "/auth/register/options",
+        json={"email": "owner@example.com", "display_name": "Owner"},
+    )
+    assert client.post("/auth/register/verify", json=finish_payload()).status_code == 400
+    repository.duplicate_credential_ids.clear()
+
+    repository.registration_conflict = True
+    client.post(
+        "/auth/register/options",
+        json={"email": "owner@example.com", "display_name": "Owner"},
+    )
+    assert client.post("/auth/register/verify", json=finish_payload()).status_code == 400
+
+
+def test_login_rejects_configuration_payload_owner_and_verification_errors() -> None:
+    client, repository, service = build_client()
+    assert register(client).status_code == 200
+    passkey = repository.passkeys[0]
+
+    service.begin_authentication_error = PasskeyConfigurationError("bad authentication config")
+    response = client.post("/auth/login/options", json={})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "bad authentication config"
+    service.begin_authentication_error = None
+
+    client.post("/auth/login/options", json={})
+    assert client.post("/auth/login/verify", json={"credential": {}}).status_code == 400
+
+    passkey.user = None
+    client.post("/auth/login/options", json={})
+    assert (
+        client.post("/auth/login/verify", json=finish_payload(passkey.credential_id)).status_code
+        == 404
+    )
+    passkey.user = repository.user
+
+    service.verify_authentication_error = ValueError("bad assertion")
+    client.post("/auth/login/options", json={})
+    assert (
+        client.post("/auth/login/verify", json=finish_payload(passkey.credential_id)).status_code
+        == 401
+    )
+
+
+def test_authenticated_routes_reject_missing_users_names_and_duplicate_credentials() -> None:
+    client, repository, service = build_client()
+    assert register(client).status_code == 200
+    repository.missing_user_by_id = True
+    assert client.get("/auth/passkeys").status_code == 404
+    repository.missing_user_by_id = False
+
+    missing_id = uuid4()
+    assert (
+        client.post(
+            f"/auth/passkeys/{missing_id}/rename/options", json={"name": "Missing"}
+        ).status_code
+        == 404
+    )
+    assert client.post(f"/auth/passkeys/{missing_id}/delete/options").status_code == 404
+    assert (
+        client.post(f"/auth/passkeys/{repository.passkeys[0].id}/delete/options").status_code == 400
+    )
+
+    service.begin_registration_error = PasskeyConfigurationError("bad user registration")
+    assert client.post("/auth/settings/passkey/options").status_code == 400
+    service.begin_registration_error = None
+
+    client.post("/auth/settings/passkey/options")
+    service.verify_registration_error = ValueError("bad replacement")
+    assert client.post("/auth/settings/passkey/verify", json=finish_payload()).status_code == 400
+    service.verify_registration_error = None
+
+    service.credential_id = b"duplicate"
+    repository.duplicate_credential_ids.add(bytes_to_base64url(b"duplicate"))
+    client.post("/auth/settings/passkey/options")
+    assert client.post("/auth/settings/passkey/verify", json=finish_payload()).status_code == 400
+
+    repository.duplicate_credential_ids.clear()
+    client.post("/auth/passkeys/register/options", json={"name": "Laptop"})
+    service.verify_registration_error = ValueError("bad added key")
+    assert client.post("/auth/passkeys/register/verify", json=finish_payload()).status_code == 400
+    service.verify_registration_error = None
+
+    repository.duplicate_credential_ids.add(bytes_to_base64url(b"duplicate"))
+    client.post("/auth/passkeys/register/options", json={"name": "Laptop"})
+    assert client.post("/auth/passkeys/register/verify", json=finish_payload()).status_code == 400
+
+
+def test_add_link_rejects_stale_failed_duplicate_and_consumed_links() -> None:
+    client, repository, service = build_client()
+    assert register(client).status_code == 200
+
+    client.post("/auth/passkey-add/valid/options")
+    repository.link_active = False
+    assert client.post("/auth/passkey-add/valid/verify", json=finish_payload()).status_code == 404
+    repository.link_active = True
+
+    client.post("/auth/passkey-add/valid/options")
+    repository.user.id = uuid4()
+    assert client.post("/auth/passkey-add/valid/verify", json=finish_payload()).status_code == 404
+
+    client.post("/auth/passkey-add/valid/options")
+    service.verify_registration_error = ValueError("bad link key")
+    assert client.post("/auth/passkey-add/valid/verify", json=finish_payload()).status_code == 400
+    service.verify_registration_error = None
+
+    service.credential_id = b"duplicate"
+    repository.duplicate_credential_ids.add(bytes_to_base64url(b"duplicate"))
+    client.post("/auth/passkey-add/valid/options")
+    assert client.post("/auth/passkey-add/valid/verify", json=finish_payload()).status_code == 400
+    repository.duplicate_credential_ids.clear()
+
+    repository.complete_link_none = True
+    client.post("/auth/passkey-add/valid/options")
+    assert client.post("/auth/passkey-add/valid/verify", json=finish_payload()).status_code == 404
+
+
+def test_rename_and_delete_reject_stale_or_unverified_credentials() -> None:
+    client, repository, service = build_client()
+    assert register(client).status_code == 200
+    client.post("/auth/passkeys/register/options", json={"name": "Laptop"})
+    assert client.post("/auth/passkeys/register/verify", json=finish_payload()).status_code == 200
+    first, second = repository.passkeys
+
+    service.begin_authentication_error = PasskeyConfigurationError("bad rename config")
+    assert (
+        client.post(f"/auth/passkeys/{first.id}/rename/options", json={"name": "Phone"}).status_code
+        == 400
+    )
+    service.begin_authentication_error = None
+
+    client.post(f"/auth/passkeys/{first.id}/rename/options", json={"name": "Phone"})
+    assert (
+        client.post(
+            f"/auth/passkeys/{second.id}/rename/verify",
+            json=finish_payload(second.credential_id),
+        ).status_code
+        == 400
+    )
+
+    client.post(f"/auth/passkeys/{first.id}/rename/options", json={"name": "Phone"})
+    assert (
+        client.post(
+            f"/auth/passkeys/{first.id}/rename/verify",
+            json=finish_payload(second.credential_id),
+        ).status_code
+        == 400
+    )
+
+    service.verify_authentication_error = ValueError("bad rename assertion")
+    client.post(f"/auth/passkeys/{first.id}/rename/options", json={"name": "Phone"})
+    assert (
+        client.post(
+            f"/auth/passkeys/{first.id}/rename/verify",
+            json=finish_payload(first.credential_id),
+        ).status_code
+        == 401
+    )
+    service.verify_authentication_error = None
+
+    client.post(f"/auth/passkeys/{first.id}/delete/options")
+    repository.passkeys.remove(second)
+    assert (
+        client.post(
+            f"/auth/passkeys/{first.id}/delete/verify",
+            json=finish_payload(second.credential_id),
+        ).status_code
+        == 400
+    )
+    repository.passkeys.append(second)
+
+    client.post(f"/auth/passkeys/{first.id}/delete/options")
+    assert (
+        client.post(
+            f"/auth/passkeys/{first.id}/delete/verify",
+            json=finish_payload(first.credential_id),
+        ).status_code
+        == 400
+    )
+
+    service.verify_authentication_error = ValueError("bad delete assertion")
+    client.post(f"/auth/passkeys/{first.id}/delete/options")
+    assert (
+        client.post(
+            f"/auth/passkeys/{first.id}/delete/verify",
+            json=finish_payload(second.credential_id),
+        ).status_code
+        == 401
+    )
+
+
+def test_passkey_output_serializes_naive_and_offset_datetimes_as_utc() -> None:
+    output = PasskeyOut.model_validate(
+        SimpleNamespace(
+            id=uuid4(),
+            name="Phone",
+            created_at=datetime(2026, 7, 18, 12, 0),
+            last_used_at=datetime(2026, 7, 18, 14, 0, tzinfo=timezone(timedelta(hours=2))),
+        )
+    )
+    assert output.model_dump(mode="json")["created_at"] == "2026-07-18T12:00:00Z"
+    assert output.model_dump(mode="json")["last_used_at"] == "2026-07-18T12:00:00Z"
 
 
 def test_template_loader_preserves_application_overrides() -> None:
