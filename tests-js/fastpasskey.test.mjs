@@ -13,6 +13,7 @@ import {
   initPasskeyAddLink,
   initPasskeyAuth,
   initPasskeyManagement,
+  interpolate,
   loginWithPasskey,
   publicKeyFromJSON,
   registerWithPasskey,
@@ -88,6 +89,8 @@ test("WebAuthn JSON conversion handles nested binary values", () => {
     rawId: "Bg",
   });
   assert.equal(credentialToJSON("plain"), "plain");
+  assert.equal(interpolate("Added {date}", { date: "today" }), "Added today");
+  assert.equal(interpolate("Keep {unknown}", {}), "Keep {unknown}");
 });
 
 
@@ -430,9 +433,12 @@ test("rendering and name form helpers cover empty and incomplete markup", () => 
     renderPasskeys(root, []);
     assert.equal(root.querySelector("[data-passkey-empty]").hidden, false);
     renderPasskeys(root, [{
-      id: "one", name: "Phone", created_at: "2026-07-18T12:00:00Z",
+      id: "one", name: '<img src=x onerror="throw 1">', created_at: "2026-07-18T12:00:00Z",
       last_used_at: "2026-07-18T12:30:00Z",
     }]);
+    assert.equal(root.querySelector("img"), null);
+    assert.equal(root.querySelector(".passkey-row strong").textContent, '<img src=x onerror="throw 1">');
+    assert.doesNotMatch(root.querySelector(".passkey-row").textContent, /\{date\}/);
     assert.equal(root.querySelector('[data-passkey-delete="one"]').disabled, true);
     setPasskeyNameFormState(root, {
       mode: "add", name: "Phone", title: "Name", submitLabel: "Continue",

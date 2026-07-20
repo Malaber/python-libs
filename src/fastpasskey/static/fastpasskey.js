@@ -9,8 +9,14 @@ function configureFastPasskey(options = {}) {
   client = { ...client, ...options };
 }
 
+function interpolate(message, values = {}) {
+  return String(message).replace(/\{([^{}]+)\}/g, (placeholder, name) => (
+    Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : placeholder
+  ));
+}
+
 function t(key, values = {}, fallback = key) {
-  return client.translate(key, values, fallback);
+  return interpolate(client.translate(key, values, fallback), values);
 }
 
 function base64UrlToBytes(value) {
@@ -328,16 +334,41 @@ function renderPasskeys(root, passkeys) {
   passkeys.forEach((passkey) => {
     const row = document.createElement("article");
     row.className = "passkey-row";
-    row.innerHTML = `
-      <div class="passkey-copy">
-        <strong>${passkey.name}</strong>
-        <span>${t("settings.added_on", { date: formatPasskeyDate(passkey.created_at) }, "Added {date}")}</span>
-        <span>${t("settings.last_used", { date: formatPasskeyDate(passkey.last_used_at) }, "Last used {date}")}</span>
-      </div>
-      <div class="passkey-actions">
-        <button type="button" class="secondary-button" data-passkey-rename="${passkey.id}" data-passkey-current-name="${passkey.name}">${t("settings.rename", {}, "Rename")}</button>
-        <button type="button" class="danger-button" data-passkey-delete="${passkey.id}" data-passkey-locked="${passkeys.length <= 1}" ${passkeys.length <= 1 ? "disabled" : ""}>${t("common.delete", {}, "Delete")}</button>
-      </div>`;
+    const copy = document.createElement("div");
+    copy.className = "passkey-copy";
+    const name = document.createElement("strong");
+    name.textContent = passkey.name;
+    const added = document.createElement("span");
+    added.textContent = t(
+      "settings.added_on",
+      { date: formatPasskeyDate(passkey.created_at) },
+      "Added {date}"
+    );
+    const lastUsed = document.createElement("span");
+    lastUsed.textContent = t(
+      "settings.last_used",
+      { date: formatPasskeyDate(passkey.last_used_at) },
+      "Last used {date}"
+    );
+    copy.append(name, added, lastUsed);
+
+    const actions = document.createElement("div");
+    actions.className = "passkey-actions";
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.className = "secondary-button";
+    rename.dataset.passkeyRename = passkey.id;
+    rename.dataset.passkeyCurrentName = passkey.name;
+    rename.textContent = t("settings.rename", {}, "Rename");
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "danger-button";
+    remove.dataset.passkeyDelete = passkey.id;
+    remove.dataset.passkeyLocked = String(passkeys.length <= 1);
+    remove.disabled = passkeys.length <= 1;
+    remove.textContent = t("common.delete", {}, "Delete");
+    actions.append(rename, remove);
+    row.append(copy, actions);
     container.appendChild(row);
   });
 }
@@ -565,6 +596,7 @@ export {
   credentialToJSON,
   deletePasskey,
   formatPasskeyDate,
+  interpolate,
   initFastPasskey,
   initPasskeyAddLink,
   initPasskeyAuth,

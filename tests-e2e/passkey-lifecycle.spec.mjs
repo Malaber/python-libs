@@ -1,21 +1,15 @@
-import { expect, test } from "playwright/test";
+import { expect, test as baseTest } from "playwright/test";
+
+import { withFastPasskeyAuthenticator } from "../src/fastpasskey/testing/playwright.mjs";
 
 
-test("registers, manages, deletes, signs in, and consumes an add link", async ({ page, context }) => {
-  const cdp = await context.newCDPSession(page);
-  await cdp.send("WebAuthn.enable");
-  const addAuthenticator = () => cdp.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
-  });
-  const firstAuthenticator = await addAuthenticator();
+const test = withFastPasskeyAuthenticator(baseTest);
 
+
+test("registers, manages, deletes, signs in, and consumes an add link", async ({
+  page,
+  fastPasskeyAuthenticator,
+}) => {
   await page.goto("/login");
   await page.locator('[data-auth-tab-trigger="signup"]').click();
   await page.locator('[name="display_name"]').fill("E2E Owner");
@@ -25,10 +19,7 @@ test("registers, manages, deletes, signs in, and consumes an add link", async ({
   await expect(page.locator(".passkey-row")).toHaveCount(1);
   await expect(page.locator(".passkey-row strong")).toHaveText("Passkey 1");
 
-  await cdp.send("WebAuthn.removeVirtualAuthenticator", {
-    authenticatorId: firstAuthenticator.authenticatorId,
-  });
-  await addAuthenticator();
+  await fastPasskeyAuthenticator.replace();
   await page.locator("[data-passkey-add]").click();
   await page.locator("[data-passkey-name-input]").fill("Laptop");
   await page.locator("[data-passkey-name-submit]").click();

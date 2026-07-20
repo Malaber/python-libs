@@ -1,18 +1,30 @@
 {
-  "name": "fastpasskey-browser-tests",
+  "name": "@malaber/fastpasskey",
+  "version": "0.0.0-development",
   "private": true,
   "type": "module",
+  "files": [
+    "src/fastpasskey/static/fastpasskey.js",
+    "src/fastpasskey/testing/playwright.mjs"
+  ],
+  "exports": {
+    "./browser": "./src/fastpasskey/static/fastpasskey.js",
+    "./playwright": "./src/fastpasskey/testing/playwright.mjs"
+  },
   "engines": {
     "node": "24.x"
   },
   "scripts": {
     "test": "npm run test:unit",
-    "test:unit": "node ./node_modules/c8/bin/c8.js --all --include src/fastpasskey/static/fastpasskey.js --branches 100 --functions 100 --lines 100 node --test tests-js/*.test.mjs",
+    "test:unit": "node ./node_modules/c8/bin/c8.js --all --include src/fastpasskey/static/fastpasskey.js --include src/fastpasskey/testing/playwright.mjs --branches 100 --functions 100 --lines 100 node --test tests-js/*.test.mjs",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
     "c8": "^11.0.0",
     "jsdom": "^29.0.0",
     "playwright": "^1.52.0"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.52.0"
   }
 }

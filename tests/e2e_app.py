@@ -226,7 +226,8 @@ add_link_template = templates.from_string(
 
 def page(body: str) -> str:
     return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>FastPasskey E2E</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>FastPasskey E2E</title>
+<link rel="stylesheet" href="/auth/assets/fastpasskey.css"></head>
 <body>{body}
 <script type="module">
 import {{ initFastPasskey }} from "/auth/assets/fastpasskey.js";
@@ -247,6 +248,7 @@ app.include_router(
             service_factory=lambda: service,
             repository_dependency=get_repository,
             current_user_dependency=get_current_user,
+            add_link_repository_dependency=get_repository,
         )
     )
 )

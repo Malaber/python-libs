@@ -105,6 +105,18 @@ class PasskeyRepository(Protocol):
         new_sign_count: int,
     ) -> None: ...
 
+    async def authenticate(
+        self, request: Request, user: PasskeyUserRecord
+    ) -> PasskeyUserRecord: ...
+
+    async def logout(self, request: Request) -> None: ...
+
+    def access_token(self, user: PasskeyUserRecord) -> str: ...
+
+
+class PasskeyAddLinkRepository(PasskeyRepository, Protocol):
+    """Optional persistence hooks used only when add-link routes are enabled."""
+
     async def add_link_user(self, token: str) -> PasskeyUserRecord | None: ...
 
     async def complete_add_link(
@@ -115,14 +127,6 @@ class PasskeyRepository(Protocol):
         name: str,
         credential: PasskeyCredential,
     ) -> PasskeyUserRecord | None: ...
-
-    async def authenticate(
-        self, request: Request, user: PasskeyUserRecord
-    ) -> PasskeyUserRecord: ...
-
-    async def logout(self, request: Request) -> None: ...
-
-    def access_token(self, user: PasskeyUserRecord) -> str: ...
 
 
 class PasskeyRegisterStartRequest(BaseModel):
@@ -188,6 +192,8 @@ class PasskeyRouterConfig:
     service_factory: Callable[[], FastPasskey]
     repository_dependency: Callable[..., PasskeyRepository]
     current_user_dependency: Callable[..., PasskeyUserRecord]
+    add_link_repository_dependency: Callable[..., PasskeyAddLinkRepository] | None = None
+    enable_add_link_routes: bool = True
     prefix: str = "/auth"
     initial_passkey_name: str = "Passkey 1"
 
@@ -314,6 +320,11 @@ def create_passkey_router(config: PasskeyRouterConfig) -> APIRouter:
     async def browser_client() -> Response:
         source = files("fastpasskey").joinpath("static/fastpasskey.js").read_text("utf-8")
         return Response(source, media_type="application/javascript")
+
+    @router.get("/assets/fastpasskey.css", include_in_schema=False)
+    async def browser_styles() -> Response:
+        source = files("fastpasskey").joinpath("static/fastpasskey.css").read_text("utf-8")
+        return Response(source, media_type="text/css")
 
     @router.post("/register/options")
     async def begin_registration(
@@ -542,61 +553,64 @@ def create_passkey_router(config: PasskeyRouterConfig) -> APIRouter:
         request.session.pop(_PASSKEY_ADD_SESSION_KEY, None)
         return passkey
 
-    @router.post("/passkey-add/{token}/options")
-    async def begin_add_link(
-        token: str,
-        request: Request,
-        repository: PasskeyRepository = Depends(repository_dependency),
-    ) -> dict[str, object]:
-        user = await repository.add_link_user(token)
-        if user is None:
-            raise HTTPException(status_code=404, detail="Passkey add link not found")
-        service = config.service_factory()
-        start = _user_start(
-            service,
-            request,
-            user,
-            state={"user_id": str(user.id), "token": token},
-        )
-        request.session[_PASSKEY_LINK_SESSION_KEY] = start.state
-        return start.options
+    add_link_repository_dependency = config.add_link_repository_dependency or repository_dependency
+    if config.enable_add_link_routes:
 
-    @router.post("/passkey-add/{token}/verify", response_model=UserOut)
-    async def finish_add_link(
-        token: str,
-        payload: PasskeyFinishRequest,
-        request: Request,
-        repository: PasskeyRepository = Depends(repository_dependency),
-    ) -> PasskeyUserRecord:
-        service = config.service_factory()
-        state = _pending(
-            request,
-            service,
-            _PASSKEY_LINK_SESSION_KEY,
-            "Passkey add session expired",
-            token=token,
-        )
-        user = await repository.add_link_user(token)
-        if user is None or str(user.id) != state.get("user_id"):
+        @router.post("/passkey-add/{token}/options")
+        async def begin_add_link(
+            token: str,
+            request: Request,
+            repository: PasskeyAddLinkRepository = Depends(add_link_repository_dependency),
+        ) -> dict[str, object]:
+            user = await repository.add_link_user(token)
+            if user is None:
+                raise HTTPException(status_code=404, detail="Passkey add link not found")
+            service = config.service_factory()
+            start = _user_start(
+                service,
+                request,
+                user,
+                state={"user_id": str(user.id), "token": token},
+            )
+            request.session[_PASSKEY_LINK_SESSION_KEY] = start.state
+            return start.options
+
+        @router.post("/passkey-add/{token}/verify", response_model=UserOut)
+        async def finish_add_link(
+            token: str,
+            payload: PasskeyFinishRequest,
+            request: Request,
+            repository: PasskeyAddLinkRepository = Depends(add_link_repository_dependency),
+        ) -> PasskeyUserRecord:
+            service = config.service_factory()
+            state = _pending(
+                request,
+                service,
+                _PASSKEY_LINK_SESSION_KEY,
+                "Passkey add session expired",
+                token=token,
+            )
+            user = await repository.add_link_user(token)
+            if user is None or str(user.id) != state.get("user_id"):
+                request.session.pop(_PASSKEY_LINK_SESSION_KEY, None)
+                raise HTTPException(status_code=404, detail="Passkey add link not found")
+            try:
+                verified = service.verify_registration(credential=payload.credential, state=state)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail="Passkey add failed") from exc
+            credential = _verified_credential(verified)
+            if await repository.passkey_by_credential_id(credential.credential_id) is not None:
+                raise HTTPException(status_code=400, detail="That passkey is already registered")
+            completed = await repository.complete_add_link(
+                token=token,
+                user_id=user.id,
+                name=default_passkey_name(len(user.passkeys)),
+                credential=credential,
+            )
+            if completed is None:
+                raise HTTPException(status_code=404, detail="Passkey add link not found")
             request.session.pop(_PASSKEY_LINK_SESSION_KEY, None)
-            raise HTTPException(status_code=404, detail="Passkey add link not found")
-        try:
-            verified = service.verify_registration(credential=payload.credential, state=state)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail="Passkey add failed") from exc
-        credential = _verified_credential(verified)
-        if await repository.passkey_by_credential_id(credential.credential_id) is not None:
-            raise HTTPException(status_code=400, detail="That passkey is already registered")
-        completed = await repository.complete_add_link(
-            token=token,
-            user_id=user.id,
-            name=default_passkey_name(len(user.passkeys)),
-            credential=credential,
-        )
-        if completed is None:
-            raise HTTPException(status_code=404, detail="Passkey add link not found")
-        request.session.pop(_PASSKEY_LINK_SESSION_KEY, None)
-        return await repository.authenticate(request, completed)
+            return await repository.authenticate(request, completed)
 
     @router.post("/passkeys/{passkey_id}/rename/options")
     async def begin_rename(

@@ -32,7 +32,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-fastpasskey = ["static/*.js", "templates/fastpasskey/*.html"]
+fastpasskey = ["static/*.css", "static/*.js", "templates/fastpasskey/*.html", "testing/*.mjs"]
 
 [tool.setuptools_scm]
 fallback_version = "0.0.dev0"

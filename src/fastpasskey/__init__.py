@@ -16,6 +16,7 @@ from fastpasskey.core import (
     validate_passkey_name,
 )
 from fastpasskey.fastapi import (
+    PasskeyAddLinkRepository,
     PasskeyConflictError,
     PasskeyCredential,
     PasskeyOut,
@@ -32,6 +33,7 @@ __all__ = [
     "CeremonyStart",
     "FastPasskey",
     "PasskeyConfigurationError",
+    "PasskeyAddLinkRepository",
     "PasskeyConflictError",
     "PasskeyCredential",
     "PasskeyError",

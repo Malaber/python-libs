@@ -1,9 +1,11 @@
-{% macro passkey_login(next_url="/") %}
+{% macro passkey_login(next_url="/", capabilities_url="/capabilities") %}
 <section class="auth-shell" data-passkey-auth data-next-url="{{ next_url }}">
   <div class="auth-copy">
     <h1>{{ t("auth.login.title") }}</h1>
     <p>{{ t("auth.login.intro") }}</p>
-    <p><a class="secondary-button" href="/capabilities">{{ t("auth.login.capabilities_link") }}</a></p>
+    {% if capabilities_url %}
+    <p><a class="secondary-button" href="{{ capabilities_url }}">{{ t("auth.login.capabilities_link") }}</a></p>
+    {% endif %}
   </div>
   <section class="auth-card auth-card-primary">
     <p class="auth-banner auth-banner-error" data-auth-error hidden></p>

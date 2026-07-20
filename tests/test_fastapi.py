@@ -165,7 +165,7 @@ class FakeRepository:
         return f"token-{user.id}"
 
 
-def build_client():
+def build_client(*, add_links=True):
     service = FakeService()
     repository = FakeRepository()
 
@@ -183,6 +183,8 @@ def build_client():
                 service_factory=lambda: service,
                 repository_dependency=get_repository,
                 current_user_dependency=get_current_user,
+                add_link_repository_dependency=get_repository if add_links else None,
+                enable_add_link_routes=add_links,
             )
         )
     )
@@ -207,6 +209,9 @@ def test_complete_router_happy_path_and_packaged_asset() -> None:
     asset = client.get("/auth/assets/fastpasskey.js")
     assert asset.status_code == 200
     assert "initFastPasskey" in asset.text
+    styles = client.get("/auth/assets/fastpasskey.css")
+    assert styles.status_code == 200
+    assert "[hidden]" in styles.text
 
     options = client.post(
         "/auth/register/options",
@@ -287,6 +292,12 @@ def test_router_rejects_expired_and_missing_resources() -> None:
         passkeys=[],
     )
     assert client.post("/auth/passkeys/register/options", json={"name": "   "}).status_code == 400
+
+
+def test_add_link_routes_are_absent_unless_explicitly_enabled() -> None:
+    client, _, _ = build_client(add_links=False)
+    assert client.post("/auth/passkey-add/valid/options").status_code == 404
+    assert client.post("/auth/passkey-add/valid/verify", json=finish_payload()).status_code == 404
 
 
 def test_registration_rejects_configuration_verification_and_repository_conflicts() -> None:
@@ -533,3 +544,15 @@ def test_template_loader_preserves_application_overrides() -> None:
     empty_environment = Environment(loader=None)
     install_fastpasskey_templates(empty_environment)
     assert empty_environment.get_template("fastpasskey/add_link.html") is not None
+    empty_environment.globals["t"] = lambda key, **_: key
+    custom_login = empty_environment.from_string(
+        '{% from "fastpasskey/login.html" import passkey_login with context %}'
+        '{{ passkey_login("/home", "/features") }}'
+    ).render()
+    assert 'data-next-url="/home"' in custom_login
+    assert 'href="/features"' in custom_login
+    login_without_capabilities = empty_environment.from_string(
+        '{% from "fastpasskey/login.html" import passkey_login with context %}'
+        "{{ passkey_login(capabilities_url=none) }}"
+    ).render()
+    assert "auth.login.capabilities_link" not in login_without_capabilities

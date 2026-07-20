@@ -101,8 +101,11 @@ jobs:
           python -m pip install build
           export SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$GITHUB_SHA")"
           python -m build --wheel
-          wheel="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
-          sha256sum "$wheel" > "$wheel.sha256"
+          npm version "${SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FASTPASSKEY}" --no-git-tag-version
+          npm pack --pack-destination dist
+          for artifact in dist/*.whl dist/*.tgz; do
+            sha256sum "$artifact" > "$artifact.sha256"
+          done
       - name: Publish GitHub Release
         if: steps.version.outputs.existing == 'false'
         env:
@@ -110,7 +113,7 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release create "$TAG" dist/*.whl dist/*.sha256 \
+          gh release create "$TAG" dist/*.whl dist/*.tgz dist/*.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "FastPasskey v${VERSION}" \
