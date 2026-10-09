@@ -191,3 +191,30 @@ commit-derived build timestamp, writes SHA-256 checksums, creates the version
 tag, and publishes the Python wheel plus browser/testing tarball as a GitHub
 Release. Releases require no source version edit or local build/tag/release
 command.
+
+## Recommended administration and user-facing UI split
+
+For review-account enrollment and manual recovery links, use the application's
+existing administrative frontend (for example SQLAdmin, as Planini and Tracy do).
+Avoid building a separate bespoke recovery/admin frontend. Keep account search,
+creation, link issuance, expiry selection, audit metadata, and revocation in that
+admin UI. User-facing login, adding/renaming/removing passkeys, and confirmation
+screens should follow the host application's branding and system light/dark mode.
+
+Enable the existing add-link routes through `PasskeyRouterConfig` and implement
+`PasskeyAddLinkRepository`, or use the core with the application's transactional
+flow storage. Only a verified administrator may issue/revoke a link. Require a
+session-bound CSRF token for admin mutations; never accept GET requests that
+create, revoke, or consume links. Show the raw enrollment URL once, store only a
+hash, and show public IDs plus expiry/use/revocation timestamps in admin tables.
+Do not expose token hashes or raw URLs in list/detail/export views.
+
+Opening a link, starting WebAuthn, or cancelling must not consume the link.
+Claim the link and store the verified new credential in one database transaction;
+concurrent completion succeeds once. Reject expired/revoked links and inactive
+accounts at verification time. Preserve existing keys and account data. For App
+Review, prepare a dedicated non-admin account, then issue a fresh bounded-expiry
+link per reviewer. Treat links as credentials and suppress caching/referrer leaks.
+Confirm sensitive user-facing key changes with a fresh passkey assertion and
+explicit deletion UI. If allowing removal of every key, explain recovery and
+revoke sessions rather than silently leaving the account usable without keys.
